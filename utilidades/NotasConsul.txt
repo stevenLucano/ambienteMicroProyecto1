@@ -1,0 +1,69 @@
+nodo1: 
+consul agent -ui -server -bootstrap-expect=1 -node=agent-one -bind=192.168.100.4 -enable-script-checks=true -client=0.0.0.0 -data-dir=/tmp/consul -config-dir=/etc/consul.d
+
+nodo2: 
+consul agent -ui -server -node=agent-two -bind=192.168.100.5 -enable-script-checks=true -client=0.0.0.0 -data-dir=/tmp/consul -config-dir=/etc/consul.d
+
+nodo3: 
+consul agent -ui -server -node=agent-three -bind=192.168.100.6 -enable-script-checks=true -client=0.0.0.0 -data-dir=/tmp/consul -config-dir=/etc/consul.d
+
+-- En el  nodo 1(otra terminal):
+consul join "192.168.100.5" "192.168.100.6"
+
+--Auto-join
+consul -retry-join "192.168.100.5" "192.168.100.6"
+
+-- Para acceder a Consul ui
+http://192.168.100.4:8500/ui/dc1/services/consul/instances
+
+-- Config cluster
+
+frontend stats
+   bind *:1936
+   mode http
+   stats uri /
+   stats show-legends
+   no log
+
+frontend http_front
+   bind *:80
+   default_backend http_back
+
+backend http_back
+    balance roundrobin
+    server-template mywebapp 1-10 _web._tcp.service.consul resolvers consul    resolve-opts allow-dup-ip resolve-prefer ipv4 check
+
+resolvers consul
+    nameserver consul 127.0.0.1:8600
+    accepted_payload_size 8192
+    hold valid 5s
+
+-- Config normal
+backend http_back
+	balance roundrobin
+	stats enable
+	stats auth admin:admin
+	stats uri /haproxy?stats
+
+	server serverN2.1 192.168.100.5:3000 check
+        server serverN2.2 192.168.100.5:3001 check
+        server serverN2.3 192.168.100.5:3002 check
+        server serverN2.4 192.168.100.5:3003 check
+
+        server serverN3.1 192.168.100.6:3000 check
+        server serverN3.2 192.168.100.6:3001 check
+        server serverN3.3 192.168.100.6:3002 check
+frontend http
+	bind *:80
+	default_backend http_back
+
+-- Actualizacion nodeJs
+https://phoenixnap.com/kb/update-node-js-version
+Opcion 1 - paso 8 nvm install [19.0.0]
+
+-- Instalacion y ejecucion Artillery
+https://www.testim.io/blog/artillery-load-testing-introduction-see-how-your-code-scales/
+artillery quick --count 10 -n 20 http://192.168.100.4/
+
+-- Haproxy stats
+http://192.168.100.4:1936/
